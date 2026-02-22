@@ -80,3 +80,6 @@ temp/
 # Pessoal e Projeto IntelliDoc
 contexto.txt
 artifacts/
+
+# Dados Sensíveis
+Laudos_Modelo/
