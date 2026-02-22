@@ -83,3 +83,5 @@ artifacts/
 
 # Dados Sens√≠veis
 Laudos_Modelo/
+# Arquivo tempor·rio de testes
+teste_api.py
