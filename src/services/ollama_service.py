@@ -118,3 +118,36 @@ class OllamaService:
         resposta_ia = self.analisar_laudo_cot(prompt_rag, "Consulta ao Acervo")
         
         return resposta_ia, fontes
+
+    def resumir_texto(self, texto: str) -> str:
+        """
+        Resume um texto muito longo para caber na janela de contexto do modelo de embedding.
+        Caso o texto seja absurdamente longo, ele será truncado antes de enviar ao modelo.
+        """
+        MAX_CHARS = 10000 # limite seguro de caracteres para enviar no prompt de resumo
+        if len(texto) > MAX_CHARS:
+            texto = texto[:MAX_CHARS] + "... (texto truncado)"
+            
+        prompt_resumo = f"""
+        Você é um assistente técnico especialista.
+        O texto abaixo é um fragmento extraído de um documento que ficou demasiadamente longo.
+        Crie um resumo conciso e direto, mantendo o sentido, os fatos principais e as palavras-chave.
+        Não adicione introduções ou saudações, apenas o texto resumido.
+        """
+        
+        print(f"\n[OllamaService] Resumindo fragmento superdimensionado ({len(texto)} caracteres)...")
+        
+        try:
+            response = client.chat.completions.create(
+                model=self.modelo_texto,
+                messages=[
+                    {"role": "system", "content": prompt_resumo},
+                    {"role": "user", "content": texto}
+                ],
+                temperature=0.3
+            )
+            return response.choices[0].message.content
+        except Exception as e:
+            print(f"Erro ao resumir no OllamaService: {e}")
+            # Fallback seguro caso o próprio modelo de texto falhe
+            return texto[:2000]
