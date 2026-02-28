@@ -3,6 +3,7 @@ import chromadb
 from chromadb.utils import embedding_functions
 from openai import OpenAI
 from src.config import settings
+from src.utils.logger import logger_requisicoes, logger_erros
 
 # Instancia o cliente apontando para o Ollama local
 client = OpenAI(
@@ -42,7 +43,7 @@ class OllamaService:
         VEREDITO: [CONSISTENTE ou INCONSISTENTE]
         """
 
-        print(f"\n[OllamaService] Iniciando revisão do laudo ({self.modelo_texto})...")
+        logger_requisicoes.info("Iniciando revisao do laudo", modelo=self.modelo_texto, tipo_exame=tipo_exame)
         
         response = client.chat.completions.create(
             model=self.modelo_texto,
@@ -68,7 +69,7 @@ class OllamaService:
         Seja direto, técnico e aponte apenas os fatos visuais.
         """
 
-        print(f"\n[OllamaService] Iniciando análise visual ({self.modelo_visao})...")
+        logger_requisicoes.info("Iniciando analise visual", modelo=self.modelo_visao)
 
         response = client.chat.completions.create(
             model=self.modelo_visao,
@@ -135,7 +136,7 @@ class OllamaService:
         Não adicione introduções ou saudações, apenas o texto resumido.
         """
         
-        print(f"\n[OllamaService] Resumindo fragmento superdimensionado ({len(texto)} caracteres)...")
+        logger_requisicoes.info("Resumindo fragmento superdimensionado", tamanho_caracteres=len(texto))
         
         try:
             response = client.chat.completions.create(
@@ -148,6 +149,6 @@ class OllamaService:
             )
             return response.choices[0].message.content
         except Exception as e:
-            print(f"Erro ao resumir no OllamaService: {e}")
+            logger_erros.error("Erro ao resumir fragmento no OllamaService", exc_info=True, erro=str(e))
             # Fallback seguro caso o próprio modelo de texto falhe
             return texto[:2000]

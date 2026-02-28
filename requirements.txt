@@ -5,3 +5,5 @@ chromadb
 openai
 PyPDF2
 ollama
+structlog
+prometheus-fastapi-instrumentator

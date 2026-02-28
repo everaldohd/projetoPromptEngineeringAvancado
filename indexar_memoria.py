@@ -5,6 +5,7 @@ from chromadb.utils import embedding_functions
 from PyPDF2 import PdfReader
 from src.config import settings
 from src.services.ollama_service import OllamaService
+from src.utils.logger import logger_indexador
 
 def extrair_texto_pdf(caminho_pdf):
     texto = ""
@@ -16,14 +17,14 @@ def extrair_texto_pdf(caminho_pdf):
                 # Limpeza agressiva: remove tudo que não for texto útil
                 texto += " ".join(conteudo.split()) + " "
     except Exception as e:
-        print(f"Erro ao ler {caminho_pdf}: {e}")
+        logger_indexador.error("Erro ao ler PDF", caminho_pdf=caminho_pdf, erro=str(e), exc_info=True)
     return texto
 
 def criar_banco_laudos():
     # Limite de tamanho aproximado para o agrupamento de frases
     MAX_CHUNK_SIZE = 400
 
-    print(f"Iniciando indexação robusta (Modelo: {settings.MODEL_EMBEDDING})...")
+    logger_indexador.info("Iniciando indexacao robusta", modelo_embedding=settings.MODEL_EMBEDDING)
     
     ollama_service = OllamaService()
     chroma_client = chromadb.PersistentClient(path=settings.CHROMA_DB_DIR)
@@ -46,7 +47,7 @@ def criar_banco_laudos():
     for nome_arquivo in os.listdir(pasta_laudos):
         if nome_arquivo.lower().endswith('.pdf'):
             caminho_completo = os.path.join(pasta_laudos, nome_arquivo)
-            print(f"\n📂 Analisando arquivo: {nome_arquivo}")
+            logger_indexador.info("Analisando arquivo", arquivo=nome_arquivo)
             
             texto_completo = extrair_texto_pdf(caminho_completo)
             
@@ -72,11 +73,11 @@ def criar_banco_laudos():
                 chunks.append(chunk_atual.strip())
             
             if chunks:
-                print(f"   -> Gerados {len(chunks)} fragmentos. Indexando...")
+                logger_indexador.info("Iniciando indexacao dos fragmentos do arquivo", arquivo=nome_arquivo, total_fragmentos=len(chunks))
                 for idx, chunk in enumerate(chunks):
                     # Debug: mostra o progresso para identificar o ponto de falha
                     if idx % 10 == 0:
-                        print(f"      Processando fragmento {idx}/{len(chunks)}...")
+                        logger_indexador.info("Processando fragmentos", arquivo=nome_arquivo, fragmento_atual=idx, total_fragmentos=len(chunks))
                     
                     try:
                         collection.upsert(
@@ -87,7 +88,7 @@ def criar_banco_laudos():
                     except Exception as e:
                         # Se o erro for de contexto excedido (400 Bad Request / exceeds context length)
                         if "exceeds" in str(e).lower() or "context" in str(e).lower() or "400" in str(e):
-                            print(f"      [!] Fragmento {idx} excedeu tokens. Resumindo...")
+                            logger_indexador.warning("Fragmento excedeu tokens. Resumindo...", arquivo=nome_arquivo, fragmento=idx)
                             chunk_resumido = ollama_service.resumir_texto(chunk)
                             try:
                                 collection.upsert(
@@ -96,17 +97,17 @@ def criar_banco_laudos():
                                     metadatas=[{"origem": nome_arquivo}]
                                 )
                             except Exception as e2:
-                                print(f"      [!] Falha ao indexar resumo. Truncando... Erro: {e2}")
+                                logger_indexador.warning("Falha ao indexar resumo. Truncando...", arquivo=nome_arquivo, fragmento=idx, erro=str(e2))
                                 collection.upsert(
                                     documents=[chunk_resumido[:2000]],
                                     ids=[f"{nome_arquivo}_{idx}"],
                                     metadatas=[{"origem": nome_arquivo}]
                                 )
                         else:
-                            print(f"      [X] Erro desconhecido no fragmento {idx}: {e}")
-                print(f"✅ Arquivo {nome_arquivo} processado com sucesso.")
+                            logger_indexador.error("Erro desconhecido ao indexar fragmento", arquivo=nome_arquivo, fragmento=idx, erro=str(e), exc_info=True)
+                logger_indexador.info("Arquivo processado com sucesso", arquivo=nome_arquivo)
 
-    print("\n🚀 MISSÃO CUMPRIDA: O acervo de laudos está pronto para consulta!")
+    logger_indexador.info("Missao Cumprida: Acervo de laudos indexado com sucesso")
 
 if __name__ == "__main__":
     criar_banco_laudos()
